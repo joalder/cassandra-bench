@@ -1,1 +1,0 @@
-print("Rather than running this module, you should import the whole namespace and access its commands")
