@@ -1,43 +1,149 @@
 """
 Common utility functions
 """
+from time import sleep
+import logging as log
+
 import boto3
+import paramiko
+from plumbum import SshMachine
+from plumbum.machines.paramiko_machine import ParamikoMachine
+from plumbum.commands import base
 
-from cbench import settings
+from . import state
+from . import settings
+
+ec2 = boto3.resource("ec2")
+
+# Hack to use background commands through paramiko
+base._safechars += ">&"
 
 
-def create_instance(name, image=settings.DEFAULT_INSTANCE_IMANGE, type=settings.DEFAULT_INSTANCE_TYPE, start=False):
-    ec2 = boto3.resource("ec2")
-
-    user_data = """#cloud-config
-
-    runcmd:
-     - apt-get update
-     - apt-get install docker docker.io
-     - docker pull cassandra:2.2
-    """
+def create_instance(name, image=settings.DEFAULT_INSTANCE_IMANGE, type=settings.DEFAULT_INSTANCE_TYPE, setup='cassandra'):
 
     instance, = ec2.create_instances(
         ImageId=image,
         KeyName=settings.DEFAULT_KEY_NAME,
         MinCount=1,
         MaxCount=1,
-        UserData=user_data,
+        UserData=settings.SETUPS[setup],
         InstanceType=type,
         )
     tags = ec2.create_tags(Resources=[instance.id], Tags=[{'Key': "Name", 'Value': name}])
 
-    if start:
-        run_cassandra(instance.id)
+    log.info("Waiting for startup of {id}..".format(id=instance.id))
+    instance.wait_until_running()
+    log.info("Go for Green! State: {state}".format(state=instance.state))
 
     return instance
 
 
-def run_cassandra(instance_id, seeds=list):
-    ec2 = boto3.resource("ec2")
+def run_cassandra(instance_id):
     instance = ec2.Instance(instance_id)
 
+    # Check the seed, don't give it to instance if she is the seed
+    seed_ip = state.SEED_IP if instance.private_ip_address != state.SEED_IP else ""
+
+    log.info("Checking instance '{id}' state: {state}".format(id=instance_id, state=instance.state))
+
+    log.info("Connecting to {ip}".format(ip=instance.public_ip_address))
+    with connect(instance_id) as remote:
+        cmd = remote["sudo"]
+        ret = cmd["docker", "run", "-d", "--name", "cassy", "-e", "CASSANDRA_SEEDS=" + seed_ip, "--net", "host", "cassandra:2.2"]()
+
+    #After starting the seed instance we wait a little, to let it startup
+    if not seed_ip:
+        sleep(5)
+
+    log.info("Command returned:")
+    log.info(ret)
+
+    docker_status(instance_id)
+
+
+def decommission_cassandra(instance_id):
+    if not is_cassandra_running(instance_id):
+        log.error("No docker container running on instance '{0}'".format(instance_id))
+        return
+
+    with connect(instance_id) as remote:
+        cmd = remote["sudo"]
+        ret = cmd("docker", "exec", "cassy", "nodetool", "decommission")
+
+        log.info("Nodetool decomissioning returned: {0}".format(ret))
+
+
+def is_cassandra_running(instance_id):
+    if "cassy" in docker_status(instance_id):
+        return True
+    return False
+
+
+def docker_status(instance_id):
+    with connect(instance_id) as remote:
+        cmd = remote["sudo"]
+        status = cmd["docker", "ps"]()
+
+        log.info("Docker containers status:")
+        log.info(status)
+    return status
+
+
+def connect(instance_id):
+    instance = ec2.Instance(instance_id)
+    return ParamikoMachine(instance.public_ip_address, user="ubuntu", keyfile=settings.KEY_FILE, missing_host_policy=paramiko.AutoAddPolicy())
+
+
+def cluster_ips(type="private"):
+    ips = []
+    for id in state.CLUSTER_INSTANCES:
+        if type == "private":
+            ip = ec2.Instance(id).private_ip_address
+        else:
+            ip = ec2.Instance(id).public_ip_address
+        if ip:
+            ips.append(ip)
+    return ips
+
+
+def is_benchmark_done():
+    done = True
+    for instance in state.YCSB_INSTANCES:
+        with connect(instance) as remote:
+            ps = remote["ps"]
+            ret = ps["-fu", "ubuntu"]()
+            if "ycsb" in ret:
+                done = False
+    return done
 
 
 def is_reachable(host):
     pass
+
+
+class fragile(object):
+    class Break(Exception):
+      """Break out of the with statement"""
+
+    def __init__(self, value):
+        self.value = value
+
+    def __enter__(self):
+        return self.value.__enter__()
+
+    def __exit__(self, etype, value, traceback):
+        error = self.value.__exit__(etype, value, traceback)
+        if etype == self.Break:
+            return True
+        return error
+
+
+class LevelFilter(log.Filter):
+    def __init__(self, levels=list()):
+        self.levels = levels
+        super(LevelFilter, self).__init__()
+
+    def filter(self, record):
+        if record.levelno not in self.levels:
+            return False
+        return True
