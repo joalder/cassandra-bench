@@ -6,7 +6,7 @@ Preferably do a "from cbench.commands import *" so the state gets initialized pr
 import os
 from datetime import datetime
 from time import sleep
-import logging as log
+import logging
 
 import boto3
 import plumbum
@@ -18,10 +18,14 @@ from cbench import settings
 from . import state
 from . import util
 
+log = logging.getLogger('cbench.commands')
+action_log = logging.getLogger('cbench.actions')
+
 ec2 = boto3.resource('ec2')
 ec2_client = boto3.client('ec2')
 
 
+@util.action
 def create_cluster(hosts):
     if not state.SEED_IP:
         state.SEED_IP = ec2.Instance(hosts[0]).private_ip_address
@@ -29,10 +33,12 @@ def create_cluster(hosts):
         util.run_cassandra(host)
 
 
-def create_instances(num=2, group=None, setup='cassandra', ):
+@util.action
+def create_instances(num=2, group=None, setup='cassandra'):
     instances = []
     for i in range(num):
-        instance = util.create_instance("{0}-{1}".format(setup, len(group) + i), setup=setup)
+        name = "{0}-{1}".format(setup, len(group) + i)
+        instance = util.create_instance(name, setup=setup)
         log.info("Created instance with id: {id} private ip: {ip} public ip: {pip}".format(
             id=instance.id,
             ip=instance.private_ip_address,
@@ -45,10 +51,12 @@ def create_instances(num=2, group=None, setup='cassandra', ):
     return instances
 
 
+@util.action
 def remove_cassandra_instance(instance_id):
     util.decommission_cassandra(instance_id)
 
 
+@util.action
 def prepare_benchmark(workload="workloads/workloada", name=None, description=None, add_args=list()):
     if not (state.YCSB_INSTANCES and state.CLUSTER_INSTANCES):
         raise Exception("Cluster (and YCSB host) not yet initialized properly!")
@@ -59,12 +67,12 @@ def prepare_benchmark(workload="workloads/workloada", name=None, description=Non
 
     log.info("Creating keyspace YCSB and table..")
     # Create keyspace and table
-    with util.fragile(util.connect(state.CLUSTER_INSTANCES[0])) as seed_instance:
+    with util.Fragile(util.connect(state.CLUSTER_INSTANCES[0])) as seed_instance:
         sudo = seed_instance["sudo"]
         ret = sudo["docker", "exec", "cassy", "cqlsh", "-e", """DESCRIBE KEYSPACES"""]()
         if "ycsb" in ret:
             log.info("Keyspace seems to exists already!!")
-            raise util.fragile.Break
+            raise util.Fragile.Break
         ret = sudo["docker", "exec", "cassy", "cqlsh", "-e",
                      """create keyspace ycsb WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor': 3 };
                     USE ycsb;
@@ -91,6 +99,7 @@ def prepare_benchmark(workload="workloads/workloada", name=None, description=Non
             log.info("Result: " + ret)
 
 
+@util.action
 def start_benchmark(threads=1, add_args=list()):
     if not (state.RUN_NAME and state.WORKLOAD):
         raise Exception("Benchmark not setup properly! Use prepare_benchmark() first!")
@@ -105,12 +114,14 @@ def start_benchmark(threads=1, add_args=list()):
             log.info("Result: " + ret)
 
 
+@util.action
 def wait_for_finish():
     while not util.is_benchmark_done():
         sleep(10)
     log.info("No more YCSB running!")
 
 
+@util.action
 def gather_results():
     result_dir = os.path.abspath(os.path.join(settings.RESULT_DIR, state.RUN_NAME))
     if not os.path.isdir(result_dir):
@@ -142,6 +153,7 @@ def gather_results():
             fh.write("{var}={value}\n".format(var=var, value=repr(getattr(settings, var))))
 
 
+@util.action
 def terminate_instance(id):
     log.warning("Going to terminate instance '{0}'".format(id))
     ec2.Instance(id).terminate()
@@ -157,6 +169,7 @@ def terminate_all():
     for id in state.YCSB_INSTANCES:
         terminate_instance(id)
 
+
 def list_instances():
     for reservation in ec2_client.describe_instances()['Reservations']:
         for instance in reservation['Instances']:
@@ -171,6 +184,7 @@ def list_instances():
             ))
 
 
+@util.action
 def load_state():
     for reservation in ec2_client.describe_instances(
             Filters=[{'Name': 'tag-value', 'Values': ['cassandra-*']},

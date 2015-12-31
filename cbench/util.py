@@ -2,7 +2,7 @@
 Common utility functions
 """
 from time import sleep
-import logging as log
+import logging
 
 import boto3
 import paramiko
@@ -12,6 +12,9 @@ from plumbum.commands import base
 
 from . import state
 from . import settings
+
+log = logging.getLogger('cbench.commands')
+action_log = logging.getLogger('cbench.actions')
 
 ec2 = boto3.resource("ec2")
 
@@ -121,7 +124,27 @@ def is_reachable(host):
     pass
 
 
-class fragile(object):
+def action(function):
+    """
+    Decorator for function wrapping and logging of calls with arguments
+    :param function: function to log
+    :return: the decorator wrapper
+    """
+    def _wrapper(*args, **kwargs):
+        global action_log
+
+        action_log.info("Run {run} start of '{function}' args: {args} kwargs: {kwargs}".format(
+            run=state.RUN_NAME,
+            function=function.__name__,
+            args=args,
+            kwargs=kwargs))
+        ret = function(*args, **kwargs)
+        action_log.info("Run {run} end of '{function}'".format(run=state.RUN_NAME, function=function.__name__))
+
+    return _wrapper
+
+
+class Fragile(object):
     class Break(Exception):
       """Break out of the with statement"""
 
@@ -138,7 +161,7 @@ class fragile(object):
         return error
 
 
-class LevelFilter(log.Filter):
+class LevelFilter(logging.Filter):
     def __init__(self, levels=list()):
         self.levels = levels
         super(LevelFilter, self).__init__()

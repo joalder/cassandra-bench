@@ -70,12 +70,24 @@ LOGGING = {
             'class': 'logging.FileHandler',
             'filename': 'cbench.log',
             'formatter': 'verbose',
+        },
+        'file_action': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': 'cbench_actions.log',
+            'formatter': 'verbose',
         }
     },
     'loggers': {
         '': {
             'handlers': ['console', 'console_error', 'file_general'],
-            'level': 'INFO'
+            'level': 'INFO',
+        },
+        # This logger is intended for all actions like instance startup, cmds executed etc
+        'cbench.actions': {
+            'handlers': ['console', 'console_error', 'file_action'],
+            'level': 'INFO',
+            'propagate': False,
         }
     }
 }
