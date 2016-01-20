@@ -7,18 +7,16 @@ import os
 from datetime import datetime
 from time import sleep
 import logging
+from shutil import copy2
 
 import boto3
-import plumbum
-from plumbum.machines.paramiko_machine import ParamikoMachine
-import paramiko
-import logging
 
+import graph
 from cbench import settings
 from . import state
 from . import util
 
-log = logging.getLogger('cbench.commands')
+log = logging.getLogger('')
 action_log = logging.getLogger('cbench.actions')
 
 ec2 = boto3.resource('ec2')
@@ -34,18 +32,18 @@ def create_cluster(hosts):
 
 
 @util.action
-def create_instances(num=2, group=None, setup='cassandra'):
+def create_instances(num=2, group=None, setup='cassandra', type=settings.DEFAULT_INSTANCE_TYPE):
     instances = []
     for i in range(num):
         name = "{0}-{1}".format(setup, len(group) + i)
-        instance = util.create_instance(name, setup=setup)
+        instance = util.create_instance(name, setup=setup, type=type)
         log.info("Created instance with id: {id} private ip: {ip} public ip: {pip}".format(
             id=instance.id,
             ip=instance.private_ip_address,
             pip=instance.public_ip_address))
         instances.append(instance)
 
-    if group:
+    if isinstance(group, list):
         group.extend([i.id for i in instances])
 
     return instances
@@ -53,11 +51,29 @@ def create_instances(num=2, group=None, setup='cassandra'):
 
 @util.action
 def remove_cassandra_instance(instance_id):
+    # util.docker_exec(state.CLUSTER_INSTANCES[0], ["nodetool", "ring"])
+    util.docker_exec(state.CLUSTER_INSTANCES[0], ["nodetool", "status"])
     util.decommission_cassandra(instance_id)
+    util.docker_exec(state.CLUSTER_INSTANCES[0], ["nodetool", "ring"])
+    util.docker_exec(state.CLUSTER_INSTANCES[0], ["nodetool", "status"])
 
 
 @util.action
-def prepare_benchmark(workload="workloads/workloada", name=None, description=None, add_args=list()):
+def scale_cluster(instances):
+    # util.docker_exec(state.CLUSTER_INSTANCES[0], ["nodetool", "ring"])
+    util.docker_exec(state.CLUSTER_INSTANCES[0], ["nodetool", "status"])
+    for instance_id in instances:
+        if util.is_cassandra_running(instance_id):
+            msg = "Detected already running instance on {0}".format(instance_id)
+            log.error(msg)
+            raise Exception(msg)
+        util.run_cassandra(instance_id)
+    util.docker_exec(state.CLUSTER_INSTANCES[0], ["nodetool", "ring"])
+    util.docker_exec(state.CLUSTER_INSTANCES[0], ["nodetool", "status"])
+
+
+@util.action
+def prepare_benchmark(workload="workloads/workload_read", name=None, description=None, add_args=list()):
     if not (state.YCSB_INSTANCES and state.CLUSTER_INSTANCES):
         raise Exception("Cluster (and YCSB host) not yet initialized properly!")
 
@@ -95,7 +111,7 @@ def prepare_benchmark(workload="workloads/workloada", name=None, description=Non
     with util.connect(state.YCSB_INSTANCES[0]) as ycsb_instance:
         with ycsb_instance.cwd("/home/ubuntu/ycsb"):
             ycsb = ycsb_instance["bin/ycsb"]
-            ret = ycsb("load", "cassandra2-cql", "-P", workload, "-p", "hosts=" + ",".join(util.cluster_ips()), *add_args)
+            ret = ycsb("load", "cassandra2-cql", "-P", "workloads/workload_base", "-P", workload, "-p", "hosts=" + ",".join(util.cluster_ips()), *add_args)
             log.info("Result: " + ret)
 
 
@@ -109,7 +125,8 @@ def start_benchmark(threads=1, add_args=list()):
     with util.connect(state.YCSB_INSTANCES[0]) as ycsb_instance:
         with ycsb_instance.cwd("/home/ubuntu/ycsb"):
             cmd = ycsb_instance["bin/ycsb"]
-            ret = cmd("run", "cassandra2-cql", "-s", "-threads", threads, "-l", state.RUN_NAME, "-P", state.WORKLOAD,
+            ret = cmd("run", "cassandra2-cql", "-s", "-threads", threads, "-l", state.RUN_NAME,
+                      "-P", "workloads/workload_base", "-P", state.WORKLOAD,
                       "-p", "hosts=" + ",".join(util.cluster_ips()), *add_args, ">", "ycsb.log", "2>&1")
             log.info("Result: " + ret)
 
@@ -133,13 +150,6 @@ def gather_results():
         with util.connect(instance) as remote:
             remote.download("~/ycsb/ycsb.log", os.path.join(result_dir, "ycsb_{0}.log".format(i)))
 
-    for i, instance in enumerate(state.CLUSTER_INSTANCES):
-        with util.connect(instance) as remote:
-            sudo = remote["sudo"]
-            result = sudo("docker", "logs", "cassy")
-            with open(os.path.join(result_dir, "cassandra_{0}.log".format(i)), 'w') as fh:
-                fh.write(result)
-
     with open(os.path.join(result_dir, "cbench.state"), "w") as fh:
         for var in dir(state):
             if var.startswith("_"):
@@ -151,6 +161,32 @@ def gather_results():
             if var.startswith("_"):
                 continue
             fh.write("{var}={value}\n".format(var=var, value=repr(getattr(settings, var))))
+
+    for logger in [log, action_log]:
+        for handler in logger.handlers:
+            handler.flush()
+
+    copy2(settings.LOGGING['handlers']['file_general']['filename'], result_dir)
+    copy2(settings.LOGGING['handlers']['file_action']['filename'], result_dir)
+
+    for i, instance in enumerate(state.CLUSTER_INSTANCES):
+        log.info("Connecting to instance {nr} {name} for results".format(nr=i, name=instance))
+        with util.connect(instance) as remote:
+            sudo = remote["sudo"]
+            try:
+                result = sudo("docker", "logs", "cassy", ">cassy.log", "2>&1")
+                remote.download("cassy.log", os.path.join(result_dir, "cassandra_{0}.log".format(i)))
+                #with open(os.path.join(result_dir, "cassandra_{0}.log".format(i)), 'w') as fh:
+                #    fh.write(result)
+            except Exception as e:
+                log.warning("Could not gather info from {0}! Error: {1}".format(instance, e))
+
+
+def cleanup_logs():
+    for logfile in [settings.LOGGING['handlers']['file_general']['filename'],
+                    settings.LOGGING['handlers']['file_action']['filename']]:
+        with open(logfile, "wb") as fh:
+            fh.truncate()
 
 
 @util.action
@@ -193,6 +229,9 @@ def load_state():
             if instance['InstanceId'] not in state.CLUSTER_INSTANCES:
                 state.CLUSTER_INSTANCES.append(instance['InstanceId'])
 
+    if state.CLUSTER_INSTANCES:
+        state.SEED_IP = state.CLUSTER_INSTANCES[0]
+
     for reservation in ec2_client.describe_instances(
             Filters=[{'Name': 'tag-value', 'Values': ['ycsb-*']},
                      {'Name': 'instance-state-name', 'Values': ['pending', 'running']}])['Reservations']:
@@ -200,6 +239,9 @@ def load_state():
             if instance['InstanceId'] not in state.YCSB_INSTANCES:
                 state.YCSB_INSTANCES.append(instance['InstanceId'])
 
+
+def plot(measurements=None, op_types=None):
+    graph.plot()
 
 def status():
     raise Exception("Not implemented yet!")

@@ -13,7 +13,7 @@ from plumbum.commands import base
 from . import state
 from . import settings
 
-log = logging.getLogger('cbench.commands')
+log = logging.getLogger('')
 action_log = logging.getLogger('cbench.actions')
 
 ec2 = boto3.resource("ec2")
@@ -34,9 +34,9 @@ def create_instance(name, image=settings.DEFAULT_INSTANCE_IMANGE, type=settings.
         )
     tags = ec2.create_tags(Resources=[instance.id], Tags=[{'Key': "Name", 'Value': name}])
 
-    log.info("Waiting for startup of {id}..".format(id=instance.id))
-    instance.wait_until_running()
-    log.info("Go for Green! State: {state}".format(state=instance.state))
+    # log.info("Waiting for startup of {id}..".format(id=instance.id))
+    # instance.wait_until_running()
+    # log.info("Go for Green! State: {state}".format(state=instance.state))
 
     return instance
 
@@ -54,9 +54,10 @@ def run_cassandra(instance_id):
         cmd = remote["sudo"]
         ret = cmd["docker", "run", "-d", "--name", "cassy", "-e", "CASSANDRA_SEEDS=" + seed_ip, "--net", "host", "cassandra:2.2"]()
 
-    #After starting the seed instance we wait a little, to let it startup
-    if not seed_ip:
-        sleep(5)
+    #After starting the seed instance we wait a little, to let it startup (seed) or bootstrap (others)
+    sleep_time = 60 if seed_ip else 5
+    log.info("Going to wait for {0} seconds for startup or bootstrap to finish".format(sleep_time))
+    sleep(sleep_time)
 
     log.info("Command returned:")
     log.info(ret)
@@ -69,11 +70,9 @@ def decommission_cassandra(instance_id):
         log.error("No docker container running on instance '{0}'".format(instance_id))
         return
 
-    with connect(instance_id) as remote:
-        cmd = remote["sudo"]
-        ret = cmd("docker", "exec", "cassy", "nodetool", "decommission")
+    ret = docker_exec(instance_id, ["nodetool", "decommission"])
 
-        log.info("Nodetool decomissioning returned: {0}".format(ret))
+    log.info("Nodetool decomissioning returned: {0}".format(ret))
 
 
 def is_cassandra_running(instance_id):
@@ -92,12 +91,21 @@ def docker_status(instance_id):
     return status
 
 
+def docker_exec(instance_id, command):
+    with connect(instance_id) as remote:
+        cmd = remote["sudo"]
+        ret = cmd("docker", "exec", "cassy", *command)
+        log.info("docker exec {0} on {1} returned:".format(command, instance_id))
+        log.info(ret)
+        return ret
+
+
 def connect(instance_id):
     instance = ec2.Instance(instance_id)
     return ParamikoMachine(instance.public_ip_address, user="ubuntu", keyfile=settings.KEY_FILE, missing_host_policy=paramiko.AutoAddPolicy())
 
 
-def cluster_ips(type="private"):
+def cluster_ips(type="private", last=False):
     ips = []
     for id in state.CLUSTER_INSTANCES:
         if type == "private":
@@ -106,7 +114,7 @@ def cluster_ips(type="private"):
             ip = ec2.Instance(id).public_ip_address
         if ip:
             ips.append(ip)
-    return ips
+    return ips if last else ips[:-1]
 
 
 def is_benchmark_done():

@@ -8,13 +8,22 @@ KEY_FILE = "C:\\Users\\Jonas\\.ssh\\jtech_key"
 
 RESULT_DIR = "results"
 
+DEFAULT_MEASUREMENTS = ['avg', 'lat99']
+
 SETUPS = {
     'cassandra': """#cloud-config
+
+    mounts:
+     - [ xvdb, /var/lib/docker, "ext4", "noatime,nobootwait", "0", "0" ]
 
     packages:
      - docker
      - docker.io
      - htop
+
+    bootcmd:
+     - mkfs.ext4 /dev/xvdb
+     - mkdir /var/lib/docker
 
     runcmd:
      - docker pull cassandra:2.2
