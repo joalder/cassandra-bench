@@ -6,12 +6,12 @@
 """
 from collections import OrderedDict
 from matplotlib import pyplot as plt
-import numpy as np
+
 import re
 import os.path
-from pprint import pprint
+import logging
 
-import settings
+from . import settings
 
 types = ['READ', 'INSERT', 'UPDATE', 'SCAN', 'READ-MODIFY-WRITE']
 colors = ['red', 'green', 'blue', 'orange']
@@ -19,6 +19,7 @@ colors = ['red', 'green', 'blue', 'orange']
 #measurements = ['avg', 'lat90', 'lat99']
 markers = ['x', 'o', '*', 'p']
 
+log = logging.getLogger('')
 
 def extract_base_stats(line):
     match = re.search(r'(?P<time>\d{2}:\d{2}:\d{2}:\d{3}) (?P<time_passed>\d+) sec: (?P<ops>\d+) operations; (?P<ops_sec>\d+(?:\.\d+)?)', line)
@@ -39,6 +40,9 @@ def plot(test_name, granularity=10, measurements=None):
     if not measurements:
         measurements = settings.DEFAULT_MEASUREMENTS
     file_name = os.path.join(os.path.abspath(settings.RESULT_DIR), name, "ycsb_0.log")
+
+    if not os.path.isfile(file_name):
+        log.error("Could not find a log in path '{0}'".format(file_name))
 
     plt.style.use("ggplot")
 

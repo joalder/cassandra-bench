@@ -11,10 +11,10 @@ from shutil import copy2
 
 import boto3
 
-import graph
 from cbench import settings
 from . import state
 from . import util
+from . import graph
 
 log = logging.getLogger('')
 action_log = logging.getLogger('cbench.actions')
@@ -240,8 +240,10 @@ def load_state():
                 state.YCSB_INSTANCES.append(instance['InstanceId'])
 
 
-def plot(measurements=None, op_types=None):
-    graph.plot()
+def plot(run_name=None, measurements=None, op_types=None):
+    if not run_name:
+        run_name = state.RUN_NAME
+    graph.plot(run_name)
 
 def status():
     raise Exception("Not implemented yet!")
