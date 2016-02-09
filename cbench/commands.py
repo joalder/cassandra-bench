@@ -111,7 +111,7 @@ def prepare_benchmark(workload="workloads/workload_read", name=None, description
     with util.connect(state.YCSB_INSTANCES[0]) as ycsb_instance:
         with ycsb_instance.cwd("/home/ubuntu/ycsb"):
             ycsb = ycsb_instance["bin/ycsb"]
-            ret = ycsb("load", "cassandra2-cql", "-P", "workloads/workload_base", "-P", workload, "-p", "hosts=" + ",".join(util.cluster_ips()), *add_args)
+            ret = ycsb("load", "cassandra2-cql", "-threads", "40", "-P", "workloads/workload_base", "-P", workload, "-p", "hosts=" + ",".join(util.cluster_ips()), *add_args)
             log.info("Result: " + ret)
 
 
@@ -240,10 +240,10 @@ def load_state():
                 state.YCSB_INSTANCES.append(instance['InstanceId'])
 
 
-def plot(run_name=None, measurements=None, op_types=None):
+def plot(run_name=None, measurements=None, op_types=None, granularity=30):
     if not run_name:
         run_name = state.RUN_NAME
-    graph.plot(run_name)
+    graph.plot(run_name, granularity=granularity)
 
 def status():
     raise Exception("Not implemented yet!")

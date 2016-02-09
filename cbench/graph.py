@@ -6,29 +6,33 @@
 """
 from collections import OrderedDict
 from matplotlib import pyplot as plt
-
 import re
 import os.path
 import logging
-
 from . import settings
 
 types = ['READ', 'INSERT', 'UPDATE', 'SCAN', 'READ-MODIFY-WRITE']
 colors = ['red', 'green', 'blue', 'orange']
 
-#measurements = ['avg', 'lat90', 'lat99']
+# measurements = ['avg', 'lat90', 'lat99']
+legend_mapping = {'avg': "average",
+                  'lat99': "99%-til"}
 markers = ['x', 'o', '*', 'p']
 
 log = logging.getLogger('')
 
+
 def extract_base_stats(line):
-    match = re.search(r'(?P<time>\d{2}:\d{2}:\d{2}:\d{3}) (?P<time_passed>\d+) sec: (?P<ops>\d+) operations; (?P<ops_sec>\d+(?:\.\d+)?)', line)
+    match = re.search(
+        r'(?P<time>\d{2}:\d{2}:\d{2}:\d{3}) (?P<time_passed>\d+) sec: (?P<ops>\d+) operations; (?P<ops_sec>\d+(?:\.\d+)?)',
+        line)
     if match:
         return match.groupdict()
 
 
 def extract_latencies(line, type):
-    pattern = r'\[{0}: Count=\d+, Max=(?P<max>\d+), Min=(?P<min>\d+), Avg=(?P<avg>[\d\.]+), 90=(?P<lat90>\d+), 99=(?P<lat99>\d+), 99\.9=(?P<lat999>\d+), 99\.99=(?P<lat9999>\d+)\]'.format(type)
+    pattern = r'\[{0}: Count=\d+, Max=(?P<max>\d+), Min=(?P<min>\d+), Avg=(?P<avg>[\d\.]+), 90=(?P<lat90>\d+), 99=(?P<lat99>\d+), 99\.9=(?P<lat999>\d+), 99\.99=(?P<lat9999>\d+)\]'.format(
+        type)
     match = re.search(pattern, line)
     if match:
         stats = match.groupdict()
@@ -39,7 +43,7 @@ def extract_latencies(line, type):
 def plot(test_name, granularity=10, measurements=None):
     if not measurements:
         measurements = settings.DEFAULT_MEASUREMENTS
-    file_name = os.path.join(os.path.abspath(settings.RESULT_DIR), name, "ycsb_0.log")
+    file_name = os.path.join(os.path.abspath(settings.RESULT_DIR), test_name, "ycsb_0.log")
 
     if not os.path.isfile(file_name):
         log.error("Could not find a log in path '{0}'".format(file_name))
@@ -72,8 +76,9 @@ def plot(test_name, granularity=10, measurements=None):
                     continue
                 for lat_type, marker in zip(measurements, markers):
                     # Plot latency and correct us to ms for easier readability
-                    scatter = ax2.scatter(data_point['time_passed'], float(latency_data[lat_type])/1000, marker=marker, color=color)
-                    labels[type + " " + lat_type] = scatter
+                    scatter = ax2.scatter(data_point['time_passed'], float(latency_data[lat_type]) / 1000,
+                                          marker=marker, color=color)
+                    labels[type + " " + legend_mapping[lat_type] if lat_type in legend_mapping else lat_type] = scatter
 
     ax1.set_ylabel("Ops/s")
     ax1.set_xlabel("Seconds")
@@ -85,17 +90,11 @@ def plot(test_name, granularity=10, measurements=None):
     # ax2.set_yticks(np.linspace(ax2.get_yticks()[0],ax2.get_yticks()[-1],len(ax1.get_yticks())))
     # or just turn of grid on one axis
     ax2.grid(None)
-    plt.legend(labels.values(), labels.keys(), scatterpoints=1, loc="best", bbox_to_anchor=(1.0, 0.5))
+    plt.legend(labels.values(), labels.keys(), scatterpoints=1, loc="best", bbox_to_anchor=(1.0, 0.65))
     plt.savefig(os.path.join(os.path.dirname(file_name), test_name + ".png"))
     plt.show()
+
 
 if __name__ == "__main__":
     name = "Reduce_READ_6_vs_m4.2xlarge_100"
     plot(name, 30)
-
-
-
-
-
-
-
