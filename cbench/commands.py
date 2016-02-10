@@ -230,7 +230,7 @@ def load_state():
                 state.CLUSTER_INSTANCES.append(instance['InstanceId'])
 
     if state.CLUSTER_INSTANCES:
-        state.SEED_IP = state.CLUSTER_INSTANCES[0]
+        state.SEED_IP = ec2.Instance(state.CLUSTER_INSTANCES[0]).private_ip_address
 
     for reservation in ec2_client.describe_instances(
             Filters=[{'Name': 'tag-value', 'Values': ['ycsb-*']},
