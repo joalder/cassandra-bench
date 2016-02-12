@@ -41,6 +41,7 @@ def extract_latencies(line, type):
 
 
 def plot(test_name, granularity=10, measurements=None):
+    last_measurement_time = None
     if not measurements:
         measurements = settings.DEFAULT_MEASUREMENTS
     file_name = os.path.join(os.path.abspath(settings.RESULT_DIR), test_name, "ycsb_0.log")
@@ -65,6 +66,10 @@ def plot(test_name, granularity=10, measurements=None):
                 continue
             if int(data_point['time_passed']) % granularity != 0:
                 continue
+
+            if last_measurement_time == data_point['time_passed']:
+                continue
+            last_measurement_time = data_point['time_passed']
 
             data_point['latencies'] = []
 

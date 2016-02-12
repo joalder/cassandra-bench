@@ -111,7 +111,7 @@ def prepare_benchmark(workload="workloads/workload_read", name=None, description
     with util.connect(state.YCSB_INSTANCES[0]) as ycsb_instance:
         with ycsb_instance.cwd("/home/ubuntu/ycsb"):
             ycsb = ycsb_instance["bin/ycsb"]
-            ret = ycsb("load", "cassandra2-cql", "-threads", "40", "-P", "workloads/workload_base", "-P", workload, "-p", "hosts=" + ",".join(util.cluster_ips()), *add_args)
+            ret = ycsb("load", "cassandra2-cql", "-threads", "100", "-P", "workloads/workload_base", "-P", workload, "-p", "hosts=" + ",".join(util.cluster_ips()), *add_args)
             log.info("Result: " + ret)
 
 
