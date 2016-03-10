@@ -1,0 +1,7 @@
+CLUSTER_INSTANCES=['i-211f999d', 'i-431c9aff', 'i-db1c9a67', 'i-ae1c9a12', 'i-da1c9a66', 'i-e71c9a5b', 'i-94189e28']
+CLUSTER_IPS=[]
+RUN_DESCRIPTION=None
+RUN_NAME='Scale_READ_MODIFY_WRITE_6_vs_m4.2xlarge_100_QUORUM_WRITE'
+SEED_IP='172.31.21.207'
+WORKLOAD='workloads/workload_read_modify_write'
+YCSB_INSTANCES=['i-201f999c']

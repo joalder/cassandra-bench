@@ -1,0 +1,7 @@
+CLUSTER_INSTANCES=['i-611194dd', 'i-db119467', 'i-d8119464', 'i-c110957d', 'i-011095bd', 'i-d9119465', 'i-5c1297e0']
+CLUSTER_IPS=[]
+RUN_DESCRIPTION=None
+RUN_NAME='Scale_SCAN_6_vs_m4.2xlarge_100'
+SEED_IP='172.31.31.240'
+WORKLOAD='workloads/workload_scan'
+YCSB_INSTANCES=['i-021095be']

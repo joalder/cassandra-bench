@@ -1,0 +1,7 @@
+CLUSTER_INSTANCES=['i-b4068b08', 'i-1e078aa2', 'i-1d078aa1', 'i-8b068b37', 'i-e4078a58', 'i-91018c2d']
+CLUSTER_IPS=[]
+RUN_DESCRIPTION=None
+RUN_NAME='Reduce_READ_6_to_5_vs_m4.2xlarge_190'
+SEED_IP='i-b4068b08'
+WORKLOAD='workloads/workload_read'
+YCSB_INSTANCES=['i-e5078a59']

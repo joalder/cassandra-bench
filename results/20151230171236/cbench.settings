@@ -1,0 +1,8 @@
+DEFAULT_INSTANCE_IMANGE='ami-accff2b1'
+DEFAULT_INSTANCE_TYPE='t2.medium'
+DEFAULT_KEY_NAME='jtech_key'
+KEY_FILE='C:\\Users\\Jonas\\.ssh\\jtech_key'
+LOGGING={'handlers': {'console': {'stream': 'ext://sys.stdout', 'level': 'DEBUG', 'formatter': 'simple', 'class': 'logging.StreamHandler', 'filters': ['info-warn']}, 'console_error': {'stream': 'ext://sys.stderr', 'level': 'ERROR', 'formatter': 'simple', 'class': 'logging.StreamHandler'}, 'file_general': {'level': 'DEBUG', 'filename': 'cbench.log', 'formatter': 'verbose', 'class': 'logging.FileHandler'}}, 'loggers': {'': {'handlers': ['console', 'console_error', 'file_general'], 'level': 'INFO'}}, 'version': 1, 'formatters': {'verbose': {'format': '%(asctime)s %(levelname)s %(module)s %(process)d %(thread)d %(message)s'}, 'simple': {'format': '%(asctime)s %(levelname)s %(message)s'}}, 'filters': {'info-warn': {'()': 'cbench.util.LevelFilter', 'levels': [20, 30]}}}
+RESULT_DIR='results'
+SETUPS={'cassandra': '#cloud-config\n\n    packages:\n     - docker\n     - docker.io\n     - htop\n\n    runcmd:\n     - docker pull cassandra:2.2\n    ', 'ycsb': '#cloud-config\n\n    packages:\n     - git\n     - openjdk-7-jdk\n     - maven\n     - htop\n\n    runcmd:\n     - git clone https://github.com/joalder/ycsb /home/ubuntu/ycsb\n     - chown -R ubuntu:ubuntu /home/ubuntu/ycsb\n    '}
+logging=<module 'logging' from 'C:\\Users\\Jonas\\AppData\\Local\\Programs\\Python\\Python35\\Lib\\logging\\__init__.py'>
