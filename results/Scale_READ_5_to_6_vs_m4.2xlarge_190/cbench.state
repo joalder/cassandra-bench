@@ -1,7 +1,0 @@
-CLUSTER_INSTANCES=['i-e2038e5e', 'i-77038ecb', 'i-e3038e5f', 'i-74038ec8', 'i-75038ec9', 'i-4a038ef6']
-CLUSTER_IPS=[]
-RUN_DESCRIPTION=None
-RUN_NAME='Scale_READ_5_to_6_vs_m4.2xlarge_190'
-SEED_IP='172.31.24.130'
-WORKLOAD='workloads/workload_read'
-YCSB_INSTANCES=['i-31008d8d']

@@ -1,7 +1,0 @@
-CLUSTER_INSTANCES=['i-05c872b9', 'i-82ce743e', 'i-7dc973c1', 'i-06c872ba']
-CLUSTER_IPS=[]
-RUN_DESCRIPTION=None
-RUN_NAME='Baseline_READ_4_vs_m4.2xlarge_100'
-SEED_IP=None
-WORKLOAD='workloads/workload_read'
-YCSB_INSTANCES=['i-3bce7487']

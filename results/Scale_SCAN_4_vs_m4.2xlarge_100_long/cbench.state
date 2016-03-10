@@ -1,7 +1,0 @@
-CLUSTER_INSTANCES=['i-eda81251', 'i-eaa81256', 'i-baa91306', 'i-8ca81230', 'i-a6ae141a']
-CLUSTER_IPS=[]
-RUN_DESCRIPTION=None
-RUN_NAME='Scale_SCAN_4_vs_m4.2xlarge_100'
-SEED_IP='172.31.18.78'
-WORKLOAD='workloads/workload_scan'
-YCSB_INSTANCES=['i-8da81231']

@@ -1,7 +1,0 @@
-CLUSTER_INSTANCES=['i-1140cbad', 'i-e940cb55', 'i-ee40cb52', 'i-1640cbaa', 'i-2341ca9f', 'i-5046cdec']
-CLUSTER_IPS=[]
-RUN_DESCRIPTION=None
-RUN_NAME='Scale_READ_MODIFY_WRITE_QUORUM_5_vs_m4.2xlarge_190'
-SEED_IP='172.31.24.79'
-WORKLOAD='workloads/workload_read_modify_write'
-YCSB_INSTANCES=['i-ef40cb53']
