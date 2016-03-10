@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 import re
 import os.path
 import logging
-from . import settings
+from cbench import settings
 
 types = ['READ', 'INSERT', 'UPDATE', 'SCAN', 'READ-MODIFY-WRITE']
 colors = ['red', 'green', 'blue', 'orange']
@@ -40,7 +40,7 @@ def extract_latencies(line, type):
         return stats
 
 
-def plot(test_name, granularity=10, measurements=None):
+def plot(test_name, granularity=10, measurements=None, op_types=None):
     last_measurement_time = None
     if not measurements:
         measurements = settings.DEFAULT_MEASUREMENTS
@@ -50,9 +50,14 @@ def plot(test_name, granularity=10, measurements=None):
         log.error("Could not find a log in path '{0}'".format(file_name))
 
     plt.style.use("ggplot")
+    #plt.axis("thight")
+    #
 
     fig, ax1 = plt.subplots()
     ax2 = ax1.twinx()
+
+    ax1.margins(0.05, 0.1)
+    ax2.margins(0.05, 0.1)
 
     labels = OrderedDict()
 
@@ -76,6 +81,8 @@ def plot(test_name, granularity=10, measurements=None):
             scatter = ax1.scatter(data_point['time_passed'], data_point['ops_sec'], marker='s', color="black")
             labels["Ops/s"] = scatter
             for type, color in zip(types, colors):
+                if op_types and (type not in op_types):
+                        continue
                 latency_data = extract_latencies(line, type)
                 if not latency_data:
                     continue
@@ -88,15 +95,16 @@ def plot(test_name, granularity=10, measurements=None):
     ax1.set_ylabel("Ops/s")
     ax1.set_xlabel("Seconds")
     ax1.set_xlim(xmin=0)
-    ax1.set_ylim(ymin=0)
+    #ax1.set_ylim(ymin=0)
     ax2.set_ylabel("Latency (ms)")
     ax2.set_ylim(ymin=0)
     # Fix grid alignment
     # ax2.set_yticks(np.linspace(ax2.get_yticks()[0],ax2.get_yticks()[-1],len(ax1.get_yticks())))
     # or just turn of grid on one axis
     ax2.grid(None)
-    plt.legend(labels.values(), labels.keys(), scatterpoints=1, loc="best", bbox_to_anchor=(1.0, 0.65))
-    plt.savefig(os.path.join(os.path.dirname(file_name), test_name + ".png"))
+
+    legend = plt.legend(labels.values(), labels.keys(), scatterpoints=1, loc="upper left", bbox_to_anchor=(1.1, 1.0))
+    plt.savefig(os.path.join(os.path.dirname(file_name), test_name + ".png"), bbox_extra_artists=(legend,), bbox_inches='tight')
     plt.show()
 
 

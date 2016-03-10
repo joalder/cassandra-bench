@@ -243,7 +243,31 @@ def load_state():
 def plot(run_name=None, measurements=None, op_types=None, granularity=30):
     if not run_name:
         run_name = state.RUN_NAME
-    graph.plot(run_name, granularity=granularity)
+    graph.plot(run_name, granularity=granularity, measurements=measurements, op_types=op_types)
+
+
+def gather_lois(run_name=None):
+    if not run_name:
+        run_name = state.RUN_NAME
+
+    cassandra_log = os.path.join(os.path.abspath(settings.RESULT_DIR), run_name, "cassandra_5.log")
+
+    events = ["LEAVING", "streaming plan", "left the ring", "All sessions completed", "bootstrap"]
+
+    log.info("Gathering lois from cassandra node 5")
+    with open(cassandra_log) as fh:
+        for line in fh.readlines():
+            if any(event in line for event in events):
+                log.info("Extracted: {0}".format(line))
+
+    ycsb_log = os.path.join(os.path.abspath(settings.RESULT_DIR), run_name, "ycsb_0.log")
+
+    log.info("Gathering lois from ycsb")
+    events = [" 0 sec", "RunTime", "Throughput", "AverageLatency", "99th"]
+    with open(ycsb_log) as fh:
+        for line in fh.readlines():
+            if any(event in line for event in events):
+                log.info("Extracted: {0}".format(line))
 
 def status():
     raise Exception("Not implemented yet!")
