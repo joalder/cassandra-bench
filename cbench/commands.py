@@ -25,6 +25,11 @@ ec2_client = boto3.client('ec2')
 
 @util.action
 def create_cluster(hosts):
+    """
+    Creates a cassandra cluster on the given EC2 instances
+
+    :param hosts: list of EC2 instance ids
+    """
     if not state.SEED_IP:
         state.SEED_IP = ec2.Instance(hosts[0]).private_ip_address
     for host in hosts:
@@ -33,6 +38,15 @@ def create_cluster(hosts):
 
 @util.action
 def create_instances(num=2, group=None, setup='cassandra', type=settings.DEFAULT_INSTANCE_TYPE):
+    """
+    Creates a EC2 instance
+
+    :param num: number of instances to create
+    :param group: a list to which the instance ids will be added
+    :param setup: type of setup. see settings.SETUPS
+    :param type: EC2 instance type as a string
+    :return: list of instances created
+    """
     instances = []
     for i in range(num):
         name = "{0}-{1}".format(setup, len(group) + i)
@@ -51,6 +65,11 @@ def create_instances(num=2, group=None, setup='cassandra', type=settings.DEFAULT
 
 @util.action
 def remove_cassandra_instance(instance_id):
+    """
+    Decomissions an node from the current cassandra cluster
+
+    :param instance_id: EC2 id of the node to decomission
+    """
     # util.docker_exec(state.CLUSTER_INSTANCES[0], ["nodetool", "ring"])
     util.docker_exec(state.CLUSTER_INSTANCES[0], ["nodetool", "status"])
     util.decommission_cassandra(instance_id)
@@ -60,6 +79,11 @@ def remove_cassandra_instance(instance_id):
 
 @util.action
 def scale_cluster(instances):
+    """
+    Scales the current cluster by the given instances. Cassandra will be started on the given instances
+
+    :param instances: list of EC2 instance ids to run cassandra on
+    """
     # util.docker_exec(state.CLUSTER_INSTANCES[0], ["nodetool", "ring"])
     util.docker_exec(state.CLUSTER_INSTANCES[0], ["nodetool", "status"])
     for instance_id in instances:
@@ -74,6 +98,14 @@ def scale_cluster(instances):
 
 @util.action
 def prepare_benchmark(workload="workloads/workload_read", name=None, description=None, add_args=list()):
+    """
+    Prepares the workload by creating the default YCSB table and running the load phase
+
+    :param workload: valid path to a workload properties file
+    :param name: identification of the test run, default is current timestamp
+    :param description: additional description for the test run
+    :param add_args: even more arguments which will be passed to YCSB with -p
+    """
     if not (state.YCSB_INSTANCES and state.CLUSTER_INSTANCES):
         raise Exception("Cluster (and YCSB host) not yet initialized properly!")
 
@@ -117,6 +149,12 @@ def prepare_benchmark(workload="workloads/workload_read", name=None, description
 
 @util.action
 def start_benchmark(threads=1, add_args=list()):
+    """
+    Starts YCSB. prepare_benchmark has to be run prior to this
+
+    :param threads: number of threads to use
+    :param add_args: additional arguments for YCSB -p
+    """
     if not (state.RUN_NAME and state.WORKLOAD):
         raise Exception("Benchmark not setup properly! Use prepare_benchmark() first!")
 
@@ -133,6 +171,9 @@ def start_benchmark(threads=1, add_args=list()):
 
 @util.action
 def wait_for_finish():
+    """
+    Waits for YCSB to finish on the benchmark machine
+    """
     while not util.is_benchmark_done():
         sleep(10)
     log.info("No more YCSB running!")
@@ -140,6 +181,10 @@ def wait_for_finish():
 
 @util.action
 def gather_results():
+    """
+    Gathers logs from cassandra nodes and YCSB machine. Also copies logs, state and settings of cbench in to
+    the settings.RESULT_DIR/<workload_name>.
+    """
     result_dir = os.path.abspath(os.path.join(settings.RESULT_DIR, state.RUN_NAME))
     if not os.path.isdir(result_dir):
         os.makedirs(result_dir)
@@ -183,6 +228,9 @@ def gather_results():
 
 
 def cleanup_logs():
+    """
+    Truncates the logs of cbench. You usually want to gather_results first!
+    """
     for logfile in [settings.LOGGING['handlers']['file_general']['filename'],
                     settings.LOGGING['handlers']['file_action']['filename']]:
         with open(logfile, "wb") as fh:
@@ -191,22 +239,36 @@ def cleanup_logs():
 
 @util.action
 def terminate_instance(id):
+    """
+    Terminates the given EC2 instance id. Caution, this probably deletes all your data on the instance.
+    :param id: EC2 instance to terminate
+    """
     log.warning("Going to terminate instance '{0}'".format(id))
     ec2.Instance(id).terminate()
 
 
 def terminate_cluster():
+    """
+    Terminates all instances in the state.CLUSTER_INSTANCES list
+    """
     for id in state.CLUSTER_INSTANCES:
         terminate_instance(id)
 
 
 def terminate_all():
+    """
+    Terminates cluster and YCSB instances
+    :return:
+    """
     terminate_cluster()
     for id in state.YCSB_INSTANCES:
         terminate_instance(id)
 
 
 def list_instances():
+    """
+    Lists all the instances and a few basic properties currently active under the configured account.
+    """
     for reservation in ec2_client.describe_instances()['Reservations']:
         for instance in reservation['Instances']:
             tags = "[{0}]".format(", ".join(tag['Key'] + ": " + tag['Value'] for tag in instance['Tags']))
@@ -222,6 +284,10 @@ def list_instances():
 
 @util.action
 def load_state():
+    """
+    Tries to guess the current state based on the active instances on the EC2 account.
+    This is usefull if code had to be reloaded, but instances are already running.
+    """
     for reservation in ec2_client.describe_instances(
             Filters=[{'Name': 'tag-value', 'Values': ['cassandra-*']},
                      {'Name': 'instance-state-name', 'Values': ['pending', 'running']}])['Reservations']:
@@ -241,12 +307,23 @@ def load_state():
 
 
 def plot(run_name=None, measurements=None, op_types=None, granularity=30):
+    """
+    Plots and saves a graph for the given run name
+    :param run_name: run to plot from
+    :param measurements: what measurements to plot
+    :param op_types: operation types to plot
+    :param granularity: measurement intervals to plot. should be a multiple of 10
+    """
     if not run_name:
         run_name = state.RUN_NAME
     graph.plot(run_name, granularity=granularity, measurements=measurements, op_types=op_types)
 
 
 def gather_lois(run_name=None):
+    """
+    Gathers and prints a few interesting lines from cassandra and YCSB logs
+    :param run_name: run to get logs from
+    """
     if not run_name:
         run_name = state.RUN_NAME
 

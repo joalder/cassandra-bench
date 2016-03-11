@@ -23,7 +23,6 @@ base._safechars += ">&"
 
 
 def create_instance(name, image=settings.DEFAULT_INSTANCE_IMANGE, type=settings.DEFAULT_INSTANCE_TYPE, setup='cassandra'):
-
     instance, = ec2.create_instances(
         ImageId=image,
         KeyName=settings.DEFAULT_KEY_NAME,
