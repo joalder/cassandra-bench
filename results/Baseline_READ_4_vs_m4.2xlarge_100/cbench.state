@@ -1,0 +1,7 @@
+CLUSTER_INSTANCES=['i-10bf05ac', 'i-1bbf05a7', 'i-f8bc0644', 'i-23bc069f', 'i-96b2082a']
+CLUSTER_IPS=[]
+RUN_DESCRIPTION=None
+RUN_NAME='Baseline_READ_4_vs_m4.2xlarge_100'
+SEED_IP='172.31.16.62'
+WORKLOAD='workloads/workload_read'
+YCSB_INSTANCES=['i-20bc069c']
